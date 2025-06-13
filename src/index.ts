@@ -12,7 +12,10 @@ import {
   pluginRegistryProvider,
   pluginExistsProvider,
 } from './providers/plugin-creation-providers.ts';
-import pluginDynamicTestSuite from '../e2e/basic.test.ts';
+import pluginDynamicTestSuite from './e2e/basic.ts';
+import timePluginE2ETestSuite from './e2e/plugin-creation-time.ts';
+import astralPluginE2ETestSuite from './e2e/plugin-creation-astral.ts';
+import shellPluginE2ETestSuite from './e2e/plugin-creation-shell.ts';
 
 // Export the plugin
 export const pluginDynamic: Plugin = {
@@ -32,7 +35,12 @@ export const pluginDynamic: Plugin = {
   ],
   services: [PluginCreationService],
   evaluators: [],
-  tests: [pluginDynamicTestSuite],
+  tests: [
+    pluginDynamicTestSuite,
+    timePluginE2ETestSuite,
+    astralPluginE2ETestSuite,
+    shellPluginE2ETestSuite,
+  ],
 };
 
 // Export individual components
