@@ -52,7 +52,7 @@ const helloWorldAction: Action = {
   similes: ['GREET', 'SAY_HELLO'],
   description: 'Responds with a simple hello world message',
 
-  validate: async (_runtime: IAgentRuntime, _message: Memory, _state: State): Promise<boolean> => {
+  validate: async (_runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     // Always valid
     return true;
   },
@@ -60,10 +60,10 @@ const helloWorldAction: Action = {
   handler: async (
     _runtime: IAgentRuntime,
     message: Memory,
-    _state: State,
-    _options: any,
-    callback: HandlerCallback,
-    _responses: Memory[]
+    _state?: State,
+    _options?: any,
+    callback?: HandlerCallback,
+    _responses?: Memory[]
   ) => {
     try {
       logger.info('Handling HELLO_WORLD action');
@@ -76,7 +76,9 @@ const helloWorldAction: Action = {
       };
 
       // Call back with the hello world message
-      await callback(responseContent);
+      if (callback) {
+        await callback(responseContent);
+      }
 
       return responseContent;
     } catch (error) {

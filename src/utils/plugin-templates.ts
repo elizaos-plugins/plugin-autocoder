@@ -39,29 +39,24 @@ export const ${camelCaseName}Action: Action = {
     ]
   ],
   validate: async (
-    runtime: IAgentRuntime,
+    _runtime: IAgentRuntime,
     message: Memory,
-    state?: State
+    _state?: State
   ): Promise<boolean> => {
     // Add validation logic here
-    return message.content.text.length > 0;
+    const text = message.content?.text || '';
+    return text.length > 0;
   },
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
-    state?: State,
-    options?: { [key: string]: unknown },
+    _state?: State,
+    _options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<string> => {
     try {
       // TODO: Implement ${name} logic here
-      ${
-        parameters
-          ? `
-      // Expected parameters: ${JSON.stringify(parameters, null, 2)}
-      `
-          : ''
-      }
+      ${parameters ? `// Expected parameters: ${JSON.stringify(parameters, null, 2)}` : ''}
       
       // Placeholder implementation
       const result = "Successfully executed ${name}";
@@ -75,7 +70,9 @@ export const ${camelCaseName}Action: Action = {
       
       return result;
     } catch (error) {
-      const errorMessage = \`Failed to execute ${name}: \${error.message}\`;
+      const errorMessage = error instanceof Error 
+        ? \`Failed to execute ${name}: \${error.message}\`
+        : \`Failed to execute ${name}: Unknown error\`;
       if (callback) {
         await callback({
           text: errorMessage,
@@ -108,34 +105,31 @@ export const ${camelCaseName}Provider: Provider = {
   name: "${name}",
   description: "${description}",
   get: async (
-    runtime: IAgentRuntime,
-    message: Memory,
-    state: State
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    _state: State
   ): Promise<ProviderResult> => {
     try {
       // TODO: Implement ${name} provider logic
       ${
-        dataStructure
-          ? `
-      // Expected data structure: ${JSON.stringify(dataStructure, null, 2)}
-      `
-          : ''
+        dataStructure ? `// Expected data structure: ${JSON.stringify(dataStructure, null, 2)}` : ''
       }
       
-      const data = {
+      const providerData = {
         // Collect relevant data here
         timestamp: new Date().toISOString(),
         source: "${name}"
       };
       
       return {
-        text: \`${name} data: \${JSON.stringify(data)}\`,
-        data: data
+        text: \`${name} data: \${JSON.stringify(providerData)}\`,
+        data: providerData
       };
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       return {
-        text: \`${name} provider error: \${error.message}\`,
-        data: { error: error.message }
+        text: \`${name} provider error: \${errorMsg}\`,
+        data: { error: errorMsg }
       };
     }
   }
@@ -243,9 +237,9 @@ export const ${camelCaseName}Evaluator: Evaluator = {
     }
   ],
   validate: async (
-    runtime: IAgentRuntime,
-    message: Memory,
-    state?: State
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    _state?: State
   ): Promise<boolean> => {
     // TODO: Add validation logic for when this evaluator should run
     ${
@@ -258,15 +252,15 @@ export const ${camelCaseName}Evaluator: Evaluator = {
     return true;
   },
   handler: async (
-    runtime: IAgentRuntime,
+    _runtime: IAgentRuntime,
     message: Memory,
-    state?: State
+    _state?: State
   ): Promise<string> => {
     try {
       logger.info(\`Running ${name} evaluator\`);
       
       // TODO: Implement evaluation logic
-      const content = message.content.text;
+      const content = message.content?.text || '';
       
       // Perform evaluation
       const result = {
@@ -280,7 +274,7 @@ export const ${camelCaseName}Evaluator: Evaluator = {
       return \`${name} evaluation complete: \${JSON.stringify(result)}\`;
     } catch (error) {
       logger.error(\`${name} evaluator error:\`, error);
-      return \`${name} evaluation failed: \${error.message}\`;
+      return \`${name} evaluation failed: \${error instanceof Error ? error.message : 'Unknown error'}\`;
     }
   }
 };
@@ -298,7 +292,7 @@ export const generatePluginIndex = (pluginName: string, specification: any): str
   if (specification.actions?.length) {
     specification.actions.forEach((action: any) => {
       const camelCaseName = action.name.charAt(0).toLowerCase() + action.name.slice(1);
-      imports.push(`import { ${camelCaseName}Action } from './actions/${action.name}';`);
+      imports.push(`import { ${camelCaseName}Action } from './actions/${action.name}.ts';`);
       exports.push(`${camelCaseName}Action`);
     });
   }
@@ -306,14 +300,18 @@ export const generatePluginIndex = (pluginName: string, specification: any): str
   if (specification.providers?.length) {
     specification.providers.forEach((provider: any) => {
       const camelCaseName = provider.name.charAt(0).toLowerCase() + provider.name.slice(1);
-      imports.push(`import { ${camelCaseName}Provider } from './providers/${provider.name}';`);
-      exports.push(`${camelCaseName}Provider`);
+      // Check if provider.name already ends with "Provider"
+      const exportName = provider.name.endsWith('Provider')
+        ? camelCaseName
+        : `${camelCaseName}Provider`;
+      imports.push(`import { ${exportName} } from './providers/${provider.name}.ts';`);
+      exports.push(exportName);
     });
   }
 
   if (specification.services?.length) {
     specification.services.forEach((service: any) => {
-      imports.push(`import { ${service.name} } from './services/${service.name}';`);
+      imports.push(`import { ${service.name} } from './services/${service.name}.ts';`);
       exports.push(`${service.name}`);
     });
   }
@@ -321,7 +319,9 @@ export const generatePluginIndex = (pluginName: string, specification: any): str
   if (specification.evaluators?.length) {
     specification.evaluators.forEach((evaluator: any) => {
       const camelCaseName = evaluator.name.charAt(0).toLowerCase() + evaluator.name.slice(1);
-      imports.push(`import { ${camelCaseName}Evaluator } from './evaluators/${evaluator.name}';`);
+      imports.push(
+        `import { ${camelCaseName}Evaluator } from './evaluators/${evaluator.name}.ts';`
+      );
       exports.push(`${camelCaseName}Evaluator`);
     });
   }
@@ -344,7 +344,12 @@ export const ${pluginClassName}: Plugin = {
     specification.providers?.length
       ? `
   providers: [
-    ${specification.providers.map((p: any) => `${p.name.charAt(0).toLowerCase() + p.name.slice(1)}Provider`).join(',\n    ')}
+    ${specification.providers
+      .map((p: any) => {
+        const camelCaseName = p.name.charAt(0).toLowerCase() + p.name.slice(1);
+        return p.name.endsWith('Provider') ? camelCaseName : `${camelCaseName}Provider`;
+      })
+      .join(',\n    ')}
   ],`
       : ''
   }

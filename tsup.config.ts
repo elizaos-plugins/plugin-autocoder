@@ -9,6 +9,8 @@ export default defineConfig({
   format: ['esm'], // Ensure you're targeting CommonJS
   dts: true, // require DTS so we get d.ts in the dist folder on npm
   external: [
+    'typescript',
+    'execa',
     'dotenv', // Externalize dotenv to prevent bundling
     'fs', // Externalize fs to use Node.js built-in module
     'fs-extra', // Externalize fs-extra to prevent bundling issues
@@ -24,6 +26,7 @@ export default defineConfig({
     'zod',
     'punycode',
     'node-fetch',
-    'http'
+    'http',
+    'agentkeepalive',
   ],
 });

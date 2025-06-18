@@ -19,11 +19,13 @@
     "noEmitOnError": false,
     "moduleDetection": "force",
     "allowArbitraryExtensions": true,
-    "baseUrl": ".",
-    "paths": {
-      "@elizaos/core": ["../core/src"],
-      "@elizaos/core/*": ["../core/src/*"]
-    }
+    "baseUrl": "."
   },
-  "include": ["src/**/*.ts", "src/e2e/**/*.ts", "__tests__/**/*.ts"]
+  "include": ["src/**/*.ts", "src/e2e/**/*.ts", "__tests__/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/__tests__/test-scenarios/**/*.ts",
+    "src/__tests__/test-data/**/*.ts"
+  ]
 }

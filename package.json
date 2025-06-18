@@ -17,11 +17,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/elizaos-plugins/plugin-auto"
+    "url": "https://github.com/elizaos-plugins/plugin-autonomous"
   },
   "homepage": "https://elizaos.ai",
   "bugs": {
-    "url": "https://github.com/elizaos-plugins/plugin-auto/issues"
+    "url": "https://github.com/elizaos-plugins/plugin-autonomous/issues"
   },
   "exports": {
     "./package.json": "./package.json",
@@ -41,14 +41,18 @@
   ],
   "dependencies": {
     "@elizaos/core": "workspace:*",
-    "@elizaos/plugin-bootstrap": "1.0.8",
+    "@elizaos/plugin-anthropic": "^1.0.3",
+    "@elizaos/plugin-message-handling": "workspace:*",
     "fs-extra": "^11.2.0",
+    "lru-cache": "^11.0.2",
+    "uuid": "^11.1.0",
     "zod": "3.24.2"
   },
   "peerDependencies": {},
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.40.1",
     "@elizaos/cli": "^1.0.0",
+    "@types/uuid": "^10.0.0",
     "dotenv": "16.4.5",
     "prettier": "3.5.3",
     "tsup": "8.4.0",
@@ -56,19 +60,18 @@
     "vitest": "3.1.4"
   },
   "scripts": {
-    "start": "elizaos start",
-    "dev": "elizaos dev",
-    "build": "tsup",
-    "lint": "prettier --write ./src",
-    "test:component": "vitest run",
-    "test:e2e": "elizaos test e2e --port 3037",
-    "test:e2e:direct": "vitest run src/e2e/run-e2e-tests.ts --reporter=verbose",
-    "test:e2e:custom": "npx tsx src/e2e/run-tests.ts",
-    "test": "npm run test:component && npm run test:e2e",
-    "test:coverage": "vitest run --coverage",
-    "publish": "elizaos publish",
-    "format": "prettier --write ./src",
-    "format:check": "prettier --check ./src"
+    "start": "bun run elizaos start",
+    "dev": "bun run elizaos dev",
+    "build": "bun run tsup",
+    "lint": "bun run prettier --write ./src",
+    "test": "bun run vitest run",
+    "test:watch": "bun run vitest",
+    "test:coverage": "bun run vitest run --coverage",
+    "test:e2e": "bun run elizaos test",
+    "publish": "bun run elizaos publish",
+    "format": "bun run prettier --write ./src",
+    "format:check": "bun run prettier --check ./src",
+    "benchmarks": "bun ./scripts/run-benchmarks.ts"
   },
   "publishConfig": {
     "access": "public"

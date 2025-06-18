@@ -1,67 +1,33 @@
-import { Plugin } from '@elizaos/core';
-import { PluginCreationService } from './services/plugin-creation-service.ts';
-import {
-  createPluginAction,
-  checkPluginCreationStatusAction,
-  cancelPluginCreationAction,
-  createPluginFromDescriptionAction,
-} from './actions/plugin-creation-actions.ts';
-import {
-  pluginCreationStatusProvider,
-  pluginCreationCapabilitiesProvider,
-  pluginRegistryProvider,
-  pluginExistsProvider,
-} from './providers/plugin-creation-providers.ts';
-import pluginDynamicTestSuite from './e2e/basic.ts';
-import timePluginE2ETestSuite from './e2e/plugin-creation-time.ts';
-import astralPluginE2ETestSuite from './e2e/plugin-creation-astral.ts';
-import shellPluginE2ETestSuite from './e2e/plugin-creation-shell.ts';
+import type { Plugin } from '@elizaos/core';
+import { orchestrationActions } from './actions/orchestration-actions.ts';
+import comprehensivePluginScenarios from './e2e/comprehensive-plugin-scenarios.ts';
+import { enhancedAutocoderTestSuite } from './e2e/enhanced-autocoder-e2e.ts';
+import orchestrationScenarioTests from './e2e/orchestration-scenarios.ts';
+import publishingScenarios from './e2e/publishing-scenarios.ts';
+import testRealOrchestration from './e2e/test-real-orchestration.ts';
+import weatherPluginScenario from './e2e/weather-plugin-scenario.ts';
+import benchmarkE2ETestSuite from './e2e/benchmark-e2e.ts';
+import { orchestrationProviders } from './providers/orchestration-providers.ts';
+import { AutoCodeService } from './services/autocode-service.ts';
 
 // Export the plugin
-export const pluginDynamic: Plugin = {
+export const pluginAutocoderPlugin: Plugin = {
   name: '@elizaos/plugin-autocoder',
-  description: 'Dynamic plugin creation system with AI-powered code generation',
-  actions: [
-    createPluginAction,
-    checkPluginCreationStatusAction,
-    cancelPluginCreationAction,
-    createPluginFromDescriptionAction,
-  ],
-  providers: [
-    pluginCreationStatusProvider,
-    pluginCreationCapabilitiesProvider,
-    pluginRegistryProvider,
-    pluginExistsProvider,
-  ],
-  services: [PluginCreationService],
+  description: 'Self-improving agent system with dynamic plugin creation and orchestration',
+  actions: [...orchestrationActions],
+  providers: [...orchestrationProviders],
+  services: [AutoCodeService],
   evaluators: [],
   tests: [
-    pluginDynamicTestSuite,
-    timePluginE2ETestSuite,
-    astralPluginE2ETestSuite,
-    shellPluginE2ETestSuite,
+    orchestrationScenarioTests,
+    testRealOrchestration,
+    weatherPluginScenario,
+    comprehensivePluginScenarios,
+    publishingScenarios,
+    benchmarkE2ETestSuite,
+    ...enhancedAutocoderTestSuite,
   ],
-};
-
-// Export individual components
-export {
-  PluginCreationService,
-  createPluginAction,
-  checkPluginCreationStatusAction,
-  cancelPluginCreationAction,
-  createPluginFromDescriptionAction,
-  pluginCreationStatusProvider,
-  pluginCreationCapabilitiesProvider,
 };
 
 // Default export
-export default pluginDynamic;
-
-// Re-export types and utilities
-export {
-  type PluginSpecification,
-  type PluginCreationJob,
-  ClaudeModel,
-} from './services/plugin-creation-service.ts';
-export * from './utils/plugin-templates.ts';
-export { pluginRegistryProvider, pluginExistsProvider };
+export default pluginAutocoderPlugin;

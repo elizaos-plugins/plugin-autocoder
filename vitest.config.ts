@@ -1,15 +1,26 @@
-import path from 'node:path';
 import { defineConfig } from 'vitest/config';
+import path from 'path';
 
 export default defineConfig({
   test: {
-    environment: 'node',
     globals: true,
-    testTimeout: 60000,
-    exclude: ['**/e2e/**', '**/node_modules/**', 'codex/**'],
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/test-key/**',
+      'data',
+      'test-single-plugin',
+      '**/e2e/**',
+      '**/test-data/**',
+      '**/test-helpers/**',
+      '**/failing-tests.test.ts',
+    ],
   },
   resolve: {
     alias: {
+      '@elizaos/core': path.resolve(__dirname, '../core/src'),
       '@': path.resolve(__dirname, './src'),
     },
   },

@@ -1,4 +1,4 @@
-import { Memory, Content } from '@elizaos/core';
+import type { Memory, Content } from '@elizaos/core';
 
 /**
  * Validates if a memory contains a valid prompt

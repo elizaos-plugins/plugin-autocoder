@@ -1,10 +1,11 @@
-import { IAgentRuntime, Memory, Provider, ProviderResult, State } from '@elizaos/core';
-import { getPluginCreationService } from '../utils/get-plugin-creation-service.ts';
+import type { IAgentRuntime, Memory, Provider, ProviderResult, State } from '@elizaos/core';
+import { AutoCodeService } from '../services/autocode-service';
+
 export const pluginRegistryProvider: Provider = {
   name: 'plugin_registry',
   description: 'Provides information about all created plugins in the current session',
   get: async (runtime: IAgentRuntime, message: Memory, state: State): Promise<ProviderResult> => {
-    const service = getPluginCreationService(runtime);
+    const service = runtime.getService('autocoder') as AutoCodeService;
 
     if (!service) {
       return {
@@ -13,35 +14,40 @@ export const pluginRegistryProvider: Provider = {
       };
     }
 
-    const createdPlugins = service.getCreatedPlugins();
-    const jobs = service.getAllJobs();
+    const allProjects = await service.getAllProjects();
+    const activeProjects = await service.getActiveProjects();
 
-    // Create a map of plugin status
-    const pluginStatus = new Map<string, any>();
+    // Group projects by name to get unique plugins
+    const pluginMap = new Map<string, any>();
 
-    for (const job of jobs) {
-      pluginStatus.set(job.specification.name, {
-        id: job.id,
-        status: job.status,
-        phase: job.currentPhase,
-        progress: job.progress,
-        startedAt: job.startedAt,
-        completedAt: job.completedAt,
-        modelUsed: job.modelUsed,
-      });
+    for (const project of allProjects) {
+      if (
+        !pluginMap.has(project.name) ||
+        project.updatedAt > pluginMap.get(project.name).updatedAt
+      ) {
+        pluginMap.set(project.name, {
+          name: project.name,
+          id: project.id,
+          status: project.status,
+          phase: project.phase,
+          totalPhases: project.totalPhases,
+          type: project.type,
+          createdAt: project.createdAt,
+          completedAt: project.completedAt,
+          githubRepo: project.githubRepo,
+          pullRequestUrl: project.pullRequestUrl,
+        });
+      }
     }
 
     const registryData = {
-      totalCreated: createdPlugins.length,
-      plugins: createdPlugins.map((name) => ({
-        name,
-        ...pluginStatus.get(name),
-      })),
-      activeJobs: jobs.filter((j) => j.status === 'running' || j.status === 'pending').length,
+      totalCreated: pluginMap.size,
+      plugins: Array.from(pluginMap.values()),
+      activeProjects: activeProjects.length,
     };
 
     return {
-      text: `Plugin Registry: ${createdPlugins.length} plugins created, ${registryData.activeJobs} active jobs`,
+      text: `Plugin Registry: ${pluginMap.size} unique plugins, ${activeProjects.length} active projects`,
       data: registryData,
     };
   },
@@ -51,7 +57,7 @@ export const pluginExistsProvider: Provider = {
   name: 'plugin_exists_check',
   description: 'Checks if a specific plugin has already been created',
   get: async (runtime: IAgentRuntime, message: Memory, state: State): Promise<ProviderResult> => {
-    const service = getPluginCreationService(runtime);
+    const service = runtime.getService('autocoder') as AutoCodeService;
 
     if (!service) {
       return {
@@ -60,18 +66,39 @@ export const pluginExistsProvider: Provider = {
       };
     }
 
-    // Extract plugin name from message
-    const pluginNameMatch = message.content.text.match(/@[a-zA-Z0-9-_]+\/[a-zA-Z0-9-_]+/);
+    // Extract plugin name from message - look for various patterns
+    const patterns = [
+      /@[a-zA-Z0-9-_]+\/[a-zA-Z0-9-_]+/, // @scope/plugin-name
+      /plugin-[a-zA-Z0-9-_]+/, // plugin-name
+      /[a-zA-Z0-9-_]+-plugin/, // name-plugin
+    ];
 
-    if (!pluginNameMatch) {
+    let pluginName: string | null = null;
+    for (const pattern of patterns) {
+      const match = (message.content.text || '').match(pattern);
+      if (match) {
+        pluginName = match[0];
+        break;
+      }
+    }
+
+    if (!pluginName) {
       return {
         text: 'No plugin name found in message',
         data: { exists: false },
       };
     }
 
-    const pluginName = pluginNameMatch[0];
-    const exists = service.isPluginCreated(pluginName);
+    // Check if plugin exists by searching through all projects
+    const allProjects = await service.getAllProjects();
+    const exists = allProjects.some(
+      (project) =>
+        project.name === pluginName ||
+        project.name === pluginName.replace(/^plugin-/, '') ||
+        project.name === pluginName.replace(/-plugin$/, '')
+    );
+
+    const createdPlugins = [...new Set(allProjects.map((p) => p.name))];
 
     return {
       text: exists
@@ -80,7 +107,7 @@ export const pluginExistsProvider: Provider = {
       data: {
         pluginName,
         exists,
-        createdPlugins: service.getCreatedPlugins(),
+        createdPlugins,
       },
     };
   },

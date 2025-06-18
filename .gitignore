@@ -58,5 +58,8 @@ cache/
 
 test-data/
 test-plugins/
+test-single-plugin/
 data/
 .eliza*
+docs/
+.cursor/
