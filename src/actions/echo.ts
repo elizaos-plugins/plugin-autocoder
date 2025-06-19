@@ -122,7 +122,7 @@ export const echoAction: Action = {
             config: config,
           },
         },
-      });
+      }, 'messages');
 
       // Send response via callback
       if (callback) {
