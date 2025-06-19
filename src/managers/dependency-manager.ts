@@ -165,18 +165,19 @@ export class DependencyManager {
 
     // Search for each requirement
     for (const requirement of requirements) {
-      const searchResults = await this.serviceDiscovery.searchPlugins(requirement);
+      const discoveryResult = await this.serviceDiscovery.discoverServices([requirement]);
 
-      for (const result of searchResults) {
-        if (!seen.has(result.name) && !existingPlugins.includes(result.name)) {
-          seen.add(result.name);
+      // Process plugins from discovery
+      for (const plugin of discoveryResult.plugins) {
+        if (!seen.has(plugin.name) && !existingPlugins.includes(plugin.name)) {
+          seen.add(plugin.name);
 
           // Calculate relevance score
-          const relevance = this.calculateRelevance(requirement, result);
+          const relevance = this.calculateRelevance(requirement, plugin);
 
           plugins.push({
-            name: result.name,
-            path: result.repository,
+            name: plugin.name,
+            path: plugin.path,
             relevance,
           });
         }
@@ -277,13 +278,8 @@ export class DependencyManager {
             return true;
           }
 
-          // Check service description
-          if (service.description?.toLowerCase().includes(word)) {
-            return true;
-          }
-
-          // Check method names
-          if (service.methods.some((m) => m.name.toLowerCase().includes(word))) {
+          // Check service type/capability
+          if (service.capabilityDescription?.toLowerCase().includes(word)) {
             return true;
           }
 
@@ -315,8 +311,8 @@ export class DependencyManager {
       for (const service of analysis.services) {
         const serviceInterface: ServiceInterface = {
           name: service.name,
-          methods: service.methods.map((m) => m.name),
-          interface: service.interface,
+          methods: [], // ServiceInfo doesn't have methods, so we leave it empty
+          interface: `interface ${service.name} extends Service`, // Generate a basic interface
         };
 
         // Try to get usage examples

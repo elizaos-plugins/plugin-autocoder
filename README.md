@@ -9,6 +9,10 @@ This plugin enables ElizaOS agents to autonomously create new plugins using AI-d
 - **Comprehensive Testing**: Built-in linting, testing with vitest, and validation
 - **Natural Language Support**: Create plugins from simple descriptions
 - **Job Management**: Track and control plugin creation jobs
+- **Plugin Manager Integration**: Seamlessly integrates with ElizaOS Plugin Manager for discovery, installation, and publishing
+- **Research-Enhanced Development**: Uses research plugin to gather information before development
+- **Multi-Stage Review**: AI-powered code review system for quality assurance
+- **Automatic Publishing**: Publish completed plugins to npm, GitHub, or Plugin Manager registry
 
 ## Installation
 
@@ -131,6 +135,17 @@ Cancels the current plugin creation job.
 
 Creates a plugin from a natural language description.
 
+### publishPlugin
+
+Publishes a completed plugin to the Plugin Manager registry, npm, or GitHub.
+
+**Examples:**
+```
+User: Publish project project-12345 to plugin registry
+User: Publish the weather-tracker plugin to npm
+User: Publish my plugin to github and registry
+```
+
 ## Providers
 
 ### plugin_creation_status
@@ -169,6 +184,38 @@ plugin-autocoder/
 ├── __tests__/                        # Test files
 └── index.ts                          # Main export
 ```
+
+## Plugin Manager Integration
+
+The AutoCoder plugin seamlessly integrates with the ElizaOS Plugin Manager for enhanced functionality:
+
+### Automatic Plugin Discovery
+- Searches for existing plugins before creating new ones
+- Suggests relevant plugins based on project requirements
+- Prevents duplicate plugin creation
+
+### Plugin Installation & Configuration
+- Automatically installs required dependencies
+- Handles plugin configuration during development
+- Manages environment variables and secrets
+
+### Publishing Workflow
+```typescript
+// After plugin development completes
+User: Publish my weather plugin to the registry
+
+Agent: Publishing weather-tracker plugin...
+✅ Successfully published:
+- Plugin Registry: Available for discovery
+- NPM: @elizaos/plugin-weather-tracker@1.0.0
+- GitHub: https://github.com/your-org/plugin-weather-tracker
+```
+
+### Plugin Lifecycle Events
+The AutoCoder responds to Plugin Manager events:
+- `PLUGIN_LOADED`: Updates projects with newly available plugins
+- `PLUGIN_CONFIGURED`: Continues development after configuration
+- `PLUGIN_ERROR`: Handles plugin failures gracefully
 
 ## Configuration
 
@@ -249,6 +296,50 @@ const specification = {
   ],
 };
 ```
+
+## Multi-SWE-bench Evaluation
+
+The plugin includes integration with Multi-SWE-bench, a benchmark for evaluating code generation capabilities on real-world GitHub issues.
+
+### Features
+
+- **Real-World Evaluation**: Test against actual TypeScript/JavaScript issues from popular repositories
+- **Automated Patch Generation**: Generate fixes for GitHub issues automatically
+- **Performance Metrics**: Track success rates, compilation rates, and execution times
+- **Cost Tracking**: Monitor API usage and associated costs
+
+### Quick Start
+
+```bash
+# Get dataset statistics
+User: Show me SWE-bench stats
+
+# Run evaluation
+User: Run SWE-bench on 5 instances
+User: Run SWE-bench on microsoft/TypeScript
+```
+
+### Configuration
+
+```bash
+# Required
+export ANTHROPIC_API_KEY="your-api-key"
+
+# Optional
+export SWE_BENCH_MOCK=true      # Use mock evaluation
+export SWE_BENCH_MAX=10         # Max instances to evaluate
+```
+
+### Results
+
+Evaluation results include:
+- Resolution rate (% of issues successfully fixed)
+- Compilation success rate
+- Test pass rate
+- Average execution time and cost
+- Success breakdown by complexity
+
+See [docs/swe-bench-guide.md](docs/swe-bench-guide.md) for detailed documentation.
 
 ## Troubleshooting
 

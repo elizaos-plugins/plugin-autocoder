@@ -1,0 +1,340 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { IAgentRuntime } from '@elizaos/core';
+
+// Manual mock object for fs-extra
+const mockFs = {
+  ensureDir: vi.fn(),
+  writeJson: vi.fn(),
+  writeFile: vi.fn(),
+  remove: vi.fn(),
+  readdir: vi.fn(),
+  readFile: vi.fn(),
+  pathExists: vi.fn(),
+};
+
+// Manual mock for child_process
+const mockSpawn = vi.fn();
+const mockChildProcess = {
+  stdout: { on: vi.fn() },
+  stderr: { on: vi.fn() },
+  on: vi.fn(),
+  kill: vi.fn(),
+  killed: false,
+  pid: 12345,
+};
+
+// Manual mock for Anthropic
+const mockAnthropicCreate = vi.fn();
+const MockAnthropic = vi.fn(() => ({
+  messages: {
+    create: mockAnthropicCreate,
+  },
+}));
+
+// Manual mocks for plugin templates
+const mockUtils = {
+  generateActionCode: vi.fn((name: string) => `export const ${name}Action = { name: "${name}" };`),
+  generateProviderCode: vi.fn((name: string) => `export const ${name}Provider = { name: "${name}" };`),
+  generateServiceCode: vi.fn((name: string) => `export class ${name} extends Service {};`),
+  generateEvaluatorCode: vi.fn((name: string) => `export const ${name}Evaluator = { name: "${name}" };`),
+  generatePluginIndex: vi.fn(() => `export const plugin = { name: "test" }; export default plugin;`),
+  generateTestCode: vi.fn(() => '// Mock test code'),
+};
+
+// Mock the modules
+vi.doMock('fs-extra', () => ({ default: mockFs, ...mockFs }));
+vi.doMock('child_process', () => ({ spawn: mockSpawn }));
+vi.doMock('@anthropic-ai/sdk', () => ({ default: MockAnthropic }));
+vi.doMock('../utils/plugin-templates', () => mockUtils);
+
+// Import the service after mocks are set up
+const { PluginCreationService, ClaudeModel } = await import('../services/plugin-creation-service');
+
+// Create mock runtime
+const createMockRuntime = (): IAgentRuntime => {
+  return {
+    getSetting: vi.fn((key: string) => {
+      const settings: Record<string, string> = {
+        ANTHROPIC_API_KEY: 'test-api-key',
+      };
+      return settings[key];
+    }),
+    agentId: 'test-agent-id',
+  } as any;
+};
+
+describe('PluginCreationService', () => {
+  let service: any;
+  let runtime: IAgentRuntime;
+  let fileSystem: Map<string, string>;
+
+  beforeEach(() => {
+    // Clear all mocks
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+
+    runtime = createMockRuntime();
+    service = new PluginCreationService(runtime);
+
+    // Track written files in memory
+    fileSystem = new Map<string, string>();
+
+    // Setup fs mocks with defaults
+    mockFs.ensureDir.mockResolvedValue(undefined);
+    mockFs.writeJson.mockResolvedValue(undefined);
+    mockFs.writeFile.mockImplementation(async (path: string, content: string) => {
+      if (typeof path === 'string' && typeof content === 'string') {
+        fileSystem.set(path, content);
+      }
+      return undefined;
+    });
+    mockFs.remove.mockResolvedValue(undefined);
+    mockFs.readdir.mockImplementation(async (path: string) => {
+      const dirPath = path.endsWith('/') ? path : path + '/';
+      const files = Array.from(fileSystem.keys())
+        .filter((f) => f.startsWith(dirPath))
+        .map((f) => f.substring(dirPath.length).split('/')[0])
+        .filter((v, i, a) => a.indexOf(v) === i);
+      return files;
+    });
+    mockFs.readFile.mockImplementation(async (path: string) => {
+      return fileSystem.get(path) || '';
+    });
+    mockFs.pathExists.mockImplementation(async (path: string) => {
+      if (fileSystem.has(path)) return true;
+      const pathWithSlash = path.endsWith('/') ? path : path + '/';
+      for (const filePath of fileSystem.keys()) {
+        if (filePath.startsWith(pathWithSlash)) return true;
+      }
+      return false;
+    });
+
+    // Setup spawn mock
+    mockSpawn.mockReturnValue(mockChildProcess);
+
+    // Setup Anthropic mock
+    mockAnthropicCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'Generated code' }],
+    });
+  });
+
+  afterEach(() => {
+    // Clear all jobs to prevent test interference
+    service.clearAllJobs();
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
+
+  describe('initialization', () => {
+    it('should initialize without API key', () => {
+      const runtimeWithoutKey = {
+        getSetting: vi.fn().mockReturnValue(undefined),
+        agentId: 'test-agent-id',
+      } as any;
+
+      const serviceWithoutKey = new PluginCreationService(runtimeWithoutKey);
+      expect(serviceWithoutKey).toBeInstanceOf(PluginCreationService);
+    });
+
+    it('should initialize with API key', () => {
+      expect(service).toBeInstanceOf(PluginCreationService);
+    });
+  });
+
+  describe('createPlugin', () => {
+    it('should create a new plugin job', async () => {
+      const specification = {
+        name: '@test/plugin',
+        description: 'Test plugin',
+      };
+
+      const jobId = await service.createPlugin(specification);
+
+      expect(jobId).toBeDefined();
+      expect(typeof jobId).toBe('string');
+
+      const job = service.getJobStatus(jobId);
+      expect(job?.status).toMatch(/^(pending|running|completed|failed)$/);
+      expect(mockFs.ensureDir).toHaveBeenCalled();
+      expect(mockFs.writeJson).toHaveBeenCalled();
+    });
+
+    it('should reject invalid plugin names', async () => {
+      const invalidNames = ['', 'a', 'plugin!', 'plugin name', '../plugin'];
+
+      for (const name of invalidNames) {
+        const specification = { name, description: 'Test' };
+        await expect(service.createPlugin(specification)).rejects.toThrow();
+      }
+    });
+
+    it('should enforce rate limiting', async () => {
+      const specification = { name: '@test/plugin', description: 'Test' };
+
+      // Create multiple plugins in quick succession
+      const jobIds = [];
+      for (let i = 0; i < 6; i++) {
+        const jobId = await service.createPlugin({
+          ...specification,
+          name: `@test/plugin-${i}`,
+        });
+        jobIds.push(jobId);
+      }
+
+      // Should reject due to rate limiting (max 5 in 15 minutes)
+      await expect(
+        service.createPlugin({ ...specification, name: '@test/plugin-6' })
+      ).rejects.toThrow('Rate limit exceeded');
+    });
+
+    it('should enforce concurrent job limit', async () => {
+      const jobs = [];
+      for (let i = 0; i < 3; i++) {
+        const jobId = await service.createPlugin({
+          name: `@test/plugin-${i}`,
+          description: 'Test',
+        });
+        jobs.push(jobId);
+      }
+
+      // Should reject 4th concurrent job
+      await expect(
+        service.createPlugin({ name: '@test/plugin-4', description: 'Test' })
+      ).rejects.toThrow('Too many concurrent jobs');
+
+      // Cancel one job to make room
+      service.cancelJob(jobs[0]);
+
+      // Now it should work
+      const newJobId = await service.createPlugin({
+        name: '@test/plugin-4',
+        description: 'Test',
+      });
+      expect(newJobId).toBeDefined();
+    });
+
+    it('should timeout long-running jobs', async () => {
+      const specification = { name: '@test/plugin', description: 'Test' };
+      const jobId = await service.createPlugin(specification);
+
+      // Advance time past timeout (31 minutes)
+      await vi.advanceTimersByTimeAsync(31 * 60 * 1000);
+
+      const job = service.getJobStatus(jobId);
+      expect(job?.status).toBe('failed');
+      expect(job?.error).toContain('timed out');
+    });
+  });
+
+  describe('job management', () => {
+    it('should get all jobs', async () => {
+      const job1 = await service.createPlugin({
+        name: '@test/plugin1',
+        description: 'Test 1',
+      });
+      const job2 = await service.createPlugin({
+        name: '@test/plugin2',
+        description: 'Test 2',
+      });
+
+      const allJobs = service.getAllJobs();
+      expect(allJobs).toHaveLength(2);
+      expect(allJobs.map((j) => j.id)).toContain(job1);
+      expect(allJobs.map((j) => j.id)).toContain(job2);
+    });
+
+    it('should cancel a job and kill process', async () => {
+      const jobId = await service.createPlugin({
+        name: '@test/plugin',
+        description: 'Test',
+      });
+
+      service.cancelJob(jobId);
+
+      const job = service.getJobStatus(jobId);
+      expect(job?.status).toBe('cancelled');
+      expect(mockChildProcess.kill).toHaveBeenCalledWith('SIGTERM');
+    });
+
+    it('should handle cancelling non-existent job', () => {
+      expect(() => service.cancelJob('non-existent')).not.toThrow();
+    });
+  });
+
+  describe('service lifecycle', () => {
+    it('should stop service and cancel running jobs', async () => {
+      const jobId = await service.createPlugin({
+        name: '@test/plugin',
+        description: 'Test',
+      });
+
+      await service.stop();
+
+      const job = service.getJobStatus(jobId);
+      expect(job?.status).toBe('cancelled');
+    });
+  });
+
+  describe('static start method', () => {
+    it('should create and initialize service', async () => {
+      const newService = await PluginCreationService.start(runtime);
+      expect(newService).toBeInstanceOf(PluginCreationService);
+    });
+  });
+
+  describe('cleanupOldJobs', () => {
+    it('should remove jobs older than one week', async () => {
+      const oldDate = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+      const recentDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+      const oldJobId = await service.createPlugin({
+        name: '@test/old-plugin',
+        description: 'Old',
+      });
+      const oldJob = service.getJobStatus(oldJobId);
+      if (oldJob) {
+        oldJob.completedAt = oldDate;
+        oldJob.status = 'completed';
+      }
+
+      const recentJobId = await service.createPlugin({
+        name: '@test/recent-plugin',
+        description: 'Recent',
+      });
+      const recentJob = service.getJobStatus(recentJobId);
+      if (recentJob) {
+        recentJob.completedAt = recentDate;
+        recentJob.status = 'completed';
+      }
+
+      service.cleanupOldJobs();
+
+      expect(service.getJobStatus(oldJobId)).toBeNull();
+      expect(service.getJobStatus(recentJobId)).toBeDefined();
+      expect(mockFs.remove).toHaveBeenCalled();
+    });
+  });
+
+  describe('plugin creation workflow', () => {
+    it('should handle successful code generation', async () => {
+      (runtime.getSetting as any).mockReturnValue('test-api-key');
+
+      mockAnthropicCreate.mockResolvedValue({
+        content: [{
+          type: 'text',
+          text: `File: src/index.ts\n\`\`\`typescript\nexport const plugin = { name: "test", actions: [], providers: [] };\nexport default plugin;\n\`\`\`\n\nFile: __tests__/plugin.test.ts\n\`\`\`typescript\ndescribe('test', () => {\n  it('works', () => {\n    expect(true).toBe(true);\n  });\n});\n\`\`\``
+        }],
+      });
+
+      const specification = { name: '@test/plugin', description: 'Test plugin' };
+      const jobId = await service.createPlugin(specification, 'test-api-key');
+
+      await vi.advanceTimersByTimeAsync(100);
+
+      const job = service.getJobStatus(jobId);
+      expect(job?.status).toMatch(/^(pending|running|completed|failed)$/);
+    });
+  });
+
+  // More tests can be added here...
+});

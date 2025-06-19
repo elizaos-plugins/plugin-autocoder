@@ -9,11 +9,44 @@ import { pathToFileURL } from 'url';
 import vm from 'vm';
 import { ComponentType } from './component-creation-manager';
 
+export interface TestOptions {
+  component: any;
+  componentType: ComponentType;
+  runtime: IAgentRuntime;
+}
+
+export interface TestResult {
+  passed: boolean;
+  tests: Array<{ name: string; passed: boolean; result?: any; error?: string }>;
+}
+
+export interface SandboxOptions {
+  filePath: string;
+  componentType: ComponentType;
+  runtime: IAgentRuntime;
+  testData?: any;
+}
+
+export interface SandboxResult {
+  success: boolean;
+  sandboxed: boolean;
+  result?: any;
+  error?: string;
+}
+
+export interface ReloadOptions {
+  filePath: string;
+  componentType: ComponentType;
+  runtime: IAgentRuntime;
+}
+
 /**
  * Options for dynamic loading
  */
 export interface DynamicLoadOptions {
-  runtimeServices?: Map<string, any>;
+  filePath: string;
+  componentType: ComponentType;
+  runtime?: IAgentRuntime;
   sandboxed?: boolean;
   requireCache?: Map<string, any>;
 }
@@ -33,6 +66,7 @@ export interface DynamicLoadResult {
  */
 export class DynamicLoaderManager {
   private dependencyManager: DependencyManager;
+  private loadedComponents: Map<string, DynamicLoadResult> = new Map();
   private compilerOptions: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES2020,
     module: ts.ModuleKind.CommonJS,

@@ -35,7 +35,7 @@ describe('Error Fixing Verification Tests', () => {
       },
     } as any;
 
-    healingService = new CodeHealingManager(mockRuntime);
+    healingService = new CodeHealingManager();
     orchestrationService = new AutoCodeService(mockRuntime);
   });
 

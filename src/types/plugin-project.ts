@@ -137,4 +137,11 @@ export interface PluginProject {
   // Missing properties from the original
   failedAttempts?: Map<string, number>;
   successfulPhases?: string[];
+  
+  // Plugin Manager integration
+  pendingConfigurations?: Array<{
+    pluginName: string;
+    type: 'environment_variables' | 'configuration';
+    required: boolean;
+  }>;
 }

@@ -8,7 +8,7 @@ import type {
 } from '@elizaos/core';
 import { elizaLogger } from '@elizaos/core';
 import { BenchmarkRunner } from '../benchmarks/benchmark-runner';
-import { getBenchmarkScenarioIds } from '../benchmarks/scenarios';
+import { getBenchmarkScenarioIds, benchmarkScenarios } from '../benchmarks/scenarios';
 import * as path from 'path';
 
 /**
@@ -49,6 +49,16 @@ export const runBenchmarkAction: Action = {
   ] as ActionExample[][],
 
   validate: async (runtime: IAgentRuntime, message: Memory, state?: State) => {
+    // Check if we're in testing/development mode
+    const isTestMode = process.env.ELIZA_TESTING === 'true' || 
+                       process.env.NODE_ENV === 'test' ||
+                       process.env.BENCHMARK_ENABLED === 'true';
+    
+    if (!isTestMode) {
+      elizaLogger.debug('[BENCHMARK] Benchmark action disabled - not in test mode');
+      return false;
+    }
+    
     // Check if orchestration service is available
     const orchestrationService = runtime.getService('orchestration');
     if (!orchestrationService) {
@@ -96,8 +106,7 @@ export const runBenchmarkAction: Action = {
         outputDir,
         scenarios: selectedScenarios
           .map((id) => {
-            const { benchmarkScenarios } = require('../benchmarks/scenarios');
-            return benchmarkScenarios.find((s: any) => s.id === id);
+            return benchmarkScenarios.find((s) => s.id === id);
           })
           .filter(Boolean),
         verbose: true,

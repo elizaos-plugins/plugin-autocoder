@@ -1,0 +1,28 @@
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+
+/**
+ * {{TOOL_DESCRIPTION}}
+ */
+export const {{TOOL_NAME}}Tool: Tool = {
+  name: '{{TOOL_NAME}}',
+  description: '{{TOOL_DESCRIPTION}}',
+  inputSchema: {
+    type: 'object',
+    properties: {{TOOL_PARAMETERS}},
+    required: {{TOOL_REQUIRED_PARAMS}},
+  },
+  handler: async (params: any) => {
+    try {
+      // TODO: Implement {{TOOL_NAME}} logic here
+      console.log(`Executing {{TOOL_NAME}} with params:`, params);
+
+      {{TOOL_IMPLEMENTATION}}
+    } catch (error) {
+      console.error(`Error in {{TOOL_NAME}}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  },
+}; 

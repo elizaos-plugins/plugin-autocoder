@@ -14,6 +14,7 @@ import {
   logger,
 } from '@elizaos/core';
 import { z } from 'zod';
+import type { EnhancedSecretManager, SecretContext } from '@elizaos/plugin-secrets-manager';
 
 /**
  * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
@@ -32,6 +33,70 @@ const configSchema = z.object({
       return val;
     }),
 });
+
+/**
+ * Helper function to get secret context for secrets manager operations
+ */
+function getSecretContext(runtime: IAgentRuntime): SecretContext {
+  return {
+    level: 'global',
+    agentId: runtime.agentId,
+    requesterId: runtime.agentId
+  };
+}
+
+/**
+ * Helper function to securely get configuration values
+ */
+async function getConfigValue(runtime: IAgentRuntime, key: string): Promise<string | undefined> {
+  const secretsManager = runtime.getService('SECRETS') as EnhancedSecretManager;
+  
+  if (secretsManager) {
+    try {
+      const value = await secretsManager.get(key, getSecretContext(runtime));
+      if (value) {
+        return value;
+      }
+    } catch (error) {
+      logger.warn(`Failed to get ${key} from secrets manager:`, error);
+    }
+  }
+  
+  // Fallback to environment variable for backward compatibility
+  return process.env[key];
+}
+
+/**
+ * Helper function to securely set configuration values
+ */
+async function setConfigValue(
+  runtime: IAgentRuntime, 
+  key: string, 
+  value: string
+): Promise<boolean> {
+  const secretsManager = runtime.getService('SECRETS') as EnhancedSecretManager;
+  
+  if (secretsManager) {
+    try {
+      return await secretsManager.set(
+        key,
+        value,
+        getSecretContext(runtime),
+        {
+          type: 'config',
+          encrypted: false,
+          plugin: 'plugin-starter'
+        }
+      );
+    } catch (error) {
+      logger.error(`Failed to set ${key} in secrets manager:`, error);
+    }
+  }
+  
+  // Fallback to environment variable
+  process.env[key] = value;
+  return true;
+}
 
 /**
  * Example HelloWorld action
@@ -156,20 +221,44 @@ export class StarterService extends Service {
   }
 }
 
+// Store runtime reference for init function
+let pluginRuntime: IAgentRuntime | null = null;
+
 export const starterPlugin: Plugin = {
   name: 'plugin-starter',
   description: 'Plugin starter for elizaOS',
+  
+  // Declare dependency on secrets manager for secure configuration
+  dependencies: ['plugin-env'],
+  
   config: {
-    EXAMPLE_PLUGIN_VARIABLE: process.env.EXAMPLE_PLUGIN_VARIABLE,
+    // Configuration will be loaded through secrets manager in init
+    EXAMPLE_PLUGIN_VARIABLE: process.env.EXAMPLE_PLUGIN_VARIABLE
   },
-  async init(config: Record<string, string>) {
+  
+  async init(config: Record<string, string>, runtime: IAgentRuntime) {
     logger.info('*** TESTING DEV MODE - PLUGIN MODIFIED AND RELOADED! ***');
+    
+    // Store runtime reference
+    pluginRuntime = runtime;
+    
     try {
-      const validatedConfig = await configSchema.parseAsync(config);
+      // Get existing configuration from secrets manager
+      const exampleVar = await getConfigValue(runtime, 'EXAMPLE_PLUGIN_VARIABLE');
+      
+      // Merge with provided config
+      const mergedConfig = {
+        EXAMPLE_PLUGIN_VARIABLE: config.EXAMPLE_PLUGIN_VARIABLE || exampleVar
+      };
+      
+      // Validate merged configuration
+      const validatedConfig = await configSchema.parseAsync(mergedConfig);
 
-      // Set all environment variables at once
+      // Store validated configuration securely
       for (const [key, value] of Object.entries(validatedConfig)) {
-        if (value) process.env[key] = value;
+        if (value) {
+          await setConfigValue(runtime, key, value);
+        }
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -247,7 +336,6 @@ export const starterPlugin: Plugin = {
   services: [StarterService],
   actions: [helloWorldAction],
   providers: [helloWorldProvider],
-  dependencies: ['@elizaos/plugin-knowledge'],
 };
 
 export default starterPlugin;

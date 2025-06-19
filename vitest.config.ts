@@ -15,7 +15,7 @@ export default defineConfig({
       '**/e2e/**',
       '**/test-data/**',
       '**/test-helpers/**',
-      '**/failing-tests.test.ts',
+      '**/resources/templates/**/*.test.ts',
     ],
   },
   resolve: {

@@ -1,0 +1,25 @@
+import { McpResource } from '../types.js';
+
+// Define the resource
+export const {{RESOURCE_NAME}}Resource: McpResource = {
+  uri: '{{RESOURCE_URI}}',
+  name: '{{RESOURCE_NAME_LOWER}}',
+  description: '{{RESOURCE_DESCRIPTION}}',
+  mimeType: '{{RESOURCE_MIME_TYPE}}',
+  
+  handler: async (config: any) => {
+    try {
+      // TODO: Implement resource logic here
+      {{RESOURCE_IMPLEMENTATION}}
+      
+      return {
+        data: 'Resource content',
+        metadata: {
+          lastUpdated: new Date().toISOString(),
+        },
+      };
+    } catch (error) {
+      throw new Error(`Failed to read {{RESOURCE_NAME}}: ${error.message}`);
+    }
+  },
+}; 

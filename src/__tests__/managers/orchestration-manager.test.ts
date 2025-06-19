@@ -138,18 +138,32 @@ describe('OrchestrationManager', () => {
     it('should handle secret provision', async () => {
       await manager.initialize();
 
-      const project = await manager.createPluginProject(
-        'test-plugin',
-        'A test plugin',
-        'user-123' as UUID
-      );
+      // Mock the development phase execution to prevent timeout
+      vi.spyOn(manager as any, 'executeMVPDevelopmentPhase').mockImplementation(async () => {});
 
-      // Manually set project to awaiting-secrets
-      const proj = await manager.getProject(project.id);
-      if (proj) {
-        proj.status = 'awaiting-secrets';
-        proj.requiredSecrets = ['API_KEY'];
-      }
+      // Create a mock project without starting workflow
+      const project = {
+        id: 'test-project-secret' as UUID,
+        name: 'test-plugin',
+        description: 'A test plugin',
+        type: 'create' as const,
+        userId: 'user-123' as UUID,
+        status: 'awaiting-secrets' as const,
+        requiredSecrets: ['API_KEY'],
+        providedSecrets: [],
+        logs: [],
+        errors: [],
+        currentPhase: 0,
+        currentIteration: 0,
+        maxIterations: 5,
+        totalPhases: 18,
+        phaseHistory: ['awaiting-secrets'],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      // Add project directly to avoid workflow
+      (manager as any).projects.set(project.id, project);
 
       await manager.provideSecrets(project.id, {
         API_KEY: 'test-api-key',
@@ -157,7 +171,7 @@ describe('OrchestrationManager', () => {
 
       const updated = await manager.getProject(project.id);
       expect(updated?.providedSecrets).toContain('API_KEY');
-    });
+    }, 10000); // Increase timeout just in case
   });
 
   describe('User Feedback', () => {

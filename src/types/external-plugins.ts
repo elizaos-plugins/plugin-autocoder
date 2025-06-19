@@ -89,6 +89,61 @@ export interface EnvManagerService extends Service {
 }
 
 // Plugin Manager Service Types (from @elizaos/plugin-plugin-manager)
+export interface PluginSearchQuery {
+  query: string;
+  limit?: number;
+  includeMetadata?: boolean;
+  sources?: string[];
+}
+
+export interface PluginSearchResult {
+  plugin: {
+    name: string;
+    description: string;
+    repository?: string;
+  };
+  score: number;
+}
+
+export interface PluginInstallOptions {
+  autoLoad?: boolean;
+  configureDefaults?: boolean;
+  enableHotReload?: boolean;
+}
+
+export interface PluginInstallResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface LoadPluginResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface UnloadPluginResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface PluginStatus {
+  configurationStatus: 'unconfigured' | 'configured' | 'partial';
+  status: 'loaded' | 'unloaded' | 'error';
+}
+
+export interface PluginState {
+  name: string;
+  path?: string;
+  status: 'loaded' | 'unloaded' | 'error';
+  plugin?: any;
+  packageJson?: any;
+}
+
+export interface ConfigurationResult {
+  success: boolean;
+  error?: string;
+}
+
 export interface PublishResult {
   success: boolean;
   npmPackage?: string;
@@ -96,6 +151,27 @@ export interface PublishResult {
 }
 
 export interface PluginManagerService extends Service {
+  // Search and discovery
+  searchPlugins(query: PluginSearchQuery): Promise<PluginSearchResult[]>;
+  
+  // Installation and lifecycle
+  installPlugin(pluginName: string, options?: PluginInstallOptions): Promise<PluginInstallResult>;
+  loadPlugin(pluginId: string): Promise<LoadPluginResult>;
+  unloadPlugin(pluginId: string): Promise<UnloadPluginResult>;
+  
+  // Status and information
+  getPluginStatus(pluginId: string): Promise<PluginStatus>;
+  getAllPlugins(): Promise<PluginState[]>;
+  
+  // Configuration
+  configurePlugin(pluginId: string, config: Record<string, any>): Promise<ConfigurationResult>;
+  startPluginConfiguration(pluginName: string): Promise<void>;
+  
+  // Event handling (optional)
+  addEventListener?(event: string, handler: (event: any) => void): void;
+  removeEventListener?(event: string, handler: (event: any) => void): void;
+  
+  // Repository operations
   clonePlugin(options: { source: string; branch?: string }): Promise<{ path: string }>;
   cloneRepository(url: string, targetDir: string): Promise<string>;
   createBranch(branchName: string): Promise<void>;
@@ -110,6 +186,8 @@ export interface PluginManagerService extends Service {
     base: string;
     repo?: string;
   }): Promise<{ url: string }>;
+  
+  // Publishing
   publishPlugin(options: {
     path: string;
     npm: boolean;

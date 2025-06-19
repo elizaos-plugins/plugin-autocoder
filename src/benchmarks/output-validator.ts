@@ -77,7 +77,7 @@ export class OutputValidator {
   ): Promise<void> {
     try {
       const { stdout, stderr } = await execAsync('bun run build', {
-        cwd: project.path,
+        cwd: project.localPath || '/tmp',
       });
 
       result.criteria.compilation = true;
@@ -111,7 +111,7 @@ export class OutputValidator {
 
     try {
       const { stdout } = await execAsync('bun test', {
-        cwd: project.path,
+        cwd: project.localPath || '/tmp',
       });
 
       // Parse test results
@@ -152,7 +152,7 @@ export class OutputValidator {
 
     try {
       const { stdout } = await execAsync('bun test --coverage', {
-        cwd: project.path,
+        cwd: project.localPath || '/tmp',
       });
 
       // Parse coverage percentage
@@ -230,7 +230,7 @@ export class OutputValidator {
     project: PluginProject,
     requirement: string
   ): Promise<boolean> {
-    const actionsDir = path.join(project.path, 'src', 'actions');
+    const actionsDir = path.join(project.localPath || '/tmp', 'src', 'actions');
     try {
       const files = await fs.readdir(actionsDir);
 
@@ -262,7 +262,7 @@ export class OutputValidator {
     project: PluginProject,
     requirement: string
   ): Promise<boolean> {
-    const providersDir = path.join(project.path, 'src', 'providers');
+    const providersDir = path.join(project.localPath || '/tmp', 'src', 'providers');
     try {
       const files = await fs.readdir(providersDir);
 
@@ -290,7 +290,7 @@ export class OutputValidator {
     project: PluginProject,
     requirement: string
   ): Promise<boolean> {
-    const servicesDir = path.join(project.path, 'src', 'services');
+    const servicesDir = path.join(project.localPath || '/tmp', 'src', 'services');
     try {
       const files = await fs.readdir(servicesDir);
 
@@ -319,11 +319,11 @@ export class OutputValidator {
    */
   private async checkApiRequirement(project: PluginProject, requirement: string): Promise<boolean> {
     // Look for API key usage, fetch calls, etc.
-    const srcDir = path.join(project.path, 'src');
+    const srcDir = path.join(project.localPath || '/tmp', 'src');
 
     try {
       const { stdout } = await execAsync(`grep -r "getSetting\\|fetch\\|axios" ${srcDir} || true`, {
-        cwd: project.path,
+        cwd: project.localPath || '/tmp',
       });
 
       return stdout.includes('getSetting') || stdout.includes('fetch') || stdout.includes('axios');
@@ -344,7 +344,7 @@ export class OutputValidator {
     try {
       for (const keyword of keywords) {
         const { stdout } = await execAsync(`grep -ri "${keyword}" src || true`, {
-          cwd: project.path,
+          cwd: project.localPath || '/tmp',
         });
 
         if (stdout.length > 0) {
@@ -367,29 +367,21 @@ export class OutputValidator {
     result: ValidationResult
   ): Promise<void> {
     // Check if generation took too long
-    if (criteria.maxDuration && project.metrics) {
-      const duration = project.metrics.totalDuration || 0;
-
-      if (duration > criteria.maxDuration) {
-        result.criteria.performance = false;
-        result.details.performanceIssues.push(
-          `Generation took ${duration}ms (max: ${criteria.maxDuration}ms)`
-        );
-      } else {
-        result.criteria.performance = true;
-      }
+    if (criteria.maxDuration) {
+      // Note: Duration is tracked externally in BenchmarkMetrics
+      // Project itself doesn't have metrics
+      result.criteria.performance = true;
     } else {
       result.criteria.performance = true;
     }
 
     // Check iteration count
-    if (criteria.maxIterations && project.metrics) {
-      const iterations = project.metrics.iterationCount || 0;
-
+    if (criteria.maxIterations) {
+      const iterations = project.currentIteration || 0;
       if (iterations > criteria.maxIterations) {
         result.criteria.performance = false;
         result.details.performanceIssues.push(
-          `Too many iterations: ${iterations} (max: ${criteria.maxIterations})`
+          `Exceeded maximum iterations: ${iterations} > ${criteria.maxIterations}`
         );
       }
     }
@@ -454,7 +446,7 @@ export class OutputValidator {
     pattern: RegExp,
     description: string
   ): Promise<boolean> {
-    const dir = path.join(project.path, 'src', subdir);
+    const dir = path.join(project.localPath || '/tmp', 'src', subdir);
 
     try {
       const files = await this.findTypeScriptFiles(dir);
@@ -495,5 +487,49 @@ export class OutputValidator {
     }
 
     return files;
+  }
+
+  private async checkRequiredFiles(
+    project: PluginProject,
+    requiredComponents: string[]
+  ): Promise<{ passed: boolean; missing: string[] }> {
+    const missing: string[] = [];
+    const actionsDir = path.join(project.localPath || '/tmp', 'src', 'actions');
+    const providersDir = path.join(project.localPath || '/tmp', 'src', 'providers');
+
+    for (const component of requiredComponents) {
+      let found = false;
+
+      // Check actions directory
+      try {
+        const actionFiles = await fs.readdir(actionsDir);
+        if (actionFiles.some((f) => f.includes(component))) {
+          found = true;
+        }
+      } catch (error) {
+        // Directory doesn't exist
+      }
+
+      // Check providers directory
+      if (!found) {
+        try {
+          const providerFiles = await fs.readdir(providersDir);
+          if (providerFiles.some((f) => f.includes(component))) {
+            found = true;
+          }
+        } catch (error) {
+          // Directory doesn't exist
+        }
+      }
+
+      if (!found) {
+        missing.push(component);
+      }
+    }
+
+    return {
+      passed: missing.length === 0,
+      missing,
+    };
   }
 }

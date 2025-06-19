@@ -394,15 +394,15 @@ export class DetailedLogger {
     });
   }
 
-  public logDebug(message: string, data?: any, metadata?: any): void {
+  public logDebug(message: string, context?: any): void {
     this.log({
-      type: 'debug',
-      category: 'debug',
-      metadata: metadata || {},
-      content: {
+      type: 'action',
+      phase: 'debug',
+      metadata: {
         message,
-        data,
+        logLevel: 'debug',
       },
+      data: context,
     });
   }
 

@@ -63,3 +63,16 @@ data/
 .eliza*
 docs/
 .cursor/
+# SWE-bench
+.swe-bench-cache/
+.swe-bench-work/
+.swe-bench-repos/
+.swe-bench-eval/
+*.patch
+test-results.json
+
+.test-*
+.eslint-*
+benchmarks/
+.turbo/
+multi-swe-bench/

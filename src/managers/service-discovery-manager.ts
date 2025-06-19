@@ -1,4 +1,5 @@
-import { logger } from '@elizaos/core';
+import { logger, type IAgentRuntime } from '@elizaos/core';
+import { PluginManagerService } from '@elizaos/plugin-plugin-manager';
 import * as ts from 'typescript';
 import * as fs from 'fs-extra';
 import * as path from 'path';
@@ -67,8 +68,11 @@ export interface ParameterInfo {
 export interface ActionInfo {
   name: string;
   description?: string;
+  signature?: string; // For backward compatibility
   validateSignature: string;
   handlerSignature: string;
+  parameters?: any[]; // For compatibility with other parts of the system
+  returnType?: string; // For compatibility with other parts of the system
   examples?: string[];
   sourceFile?: string;
 }
@@ -79,7 +83,10 @@ export interface ActionInfo {
 export interface ProviderInfo {
   name: string;
   description?: string;
+  signature?: string; // For backward compatibility
   getSignature: string;
+  parameters?: any[]; // For compatibility with other parts of the system
+  returnType?: string; // For compatibility with other parts of the system
   sourceFile?: string;
 }
 
@@ -121,11 +128,94 @@ export interface DiscoveryOptions {
 export class ServiceDiscoveryManager {
   private program: ts.Program | null = null;
   private checker: ts.TypeChecker | null = null;
+  private runtime?: IAgentRuntime;
+
+  constructor(runtime?: IAgentRuntime) {
+    this.runtime = runtime;
+  }
 
   /**
    * Discover services based on search terms
    */
   public async discoverServices(searchTerms: string[]): Promise<DiscoveryResult> {
+    // Try plugin manager first if available
+    if (this.runtime) {
+      const pluginManagerResult = await this.discoverFromPluginManager(searchTerms);
+      if (pluginManagerResult.plugins.length > 0) {
+        logger.info(`[ServiceDiscovery] Found ${pluginManagerResult.plugins.length} plugins via Plugin Manager`);
+        return pluginManagerResult;
+      }
+    }
+
+    // Fallback to filesystem discovery
+    logger.info('[ServiceDiscovery] Plugin Manager unavailable, falling back to filesystem discovery');
+    return await this.discoverFromFilesystem(searchTerms);
+  }
+
+  /**
+   * Discover services using the Plugin Manager
+   */
+  private async discoverFromPluginManager(searchTerms: string[]): Promise<DiscoveryResult> {
+    const allPlugins: PluginInfo[] = [];
+    const allServices: ServiceInfo[] = [];
+    const allActions: ActionInfo[] = [];
+    const allProviders: ProviderInfo[] = [];
+
+    try {
+      const pluginManager = this.runtime?.getService('PLUGIN_MANAGER') as PluginManagerService;
+      if (!pluginManager) {
+        logger.warn('[ServiceDiscovery] Plugin Manager service not available');
+        return { plugins: allPlugins, services: allServices, actions: allActions, providers: allProviders };
+      }
+
+      // Get all loaded plugins
+      const loadedPlugins = await pluginManager.getAllPlugins();
+      
+      for (const pluginState of loadedPlugins) {
+        if (pluginState.status === 'loaded' && pluginState.plugin) {
+          const plugin = pluginState.plugin;
+          
+          // Check if plugin matches search terms
+          const matchesSearch = this.pluginMatchesSearchTerms(plugin, searchTerms);
+          if (matchesSearch) {
+            const services = await this.extractServicesFromPlugin(plugin);
+            const actions = await this.extractActionsFromPlugin(plugin);
+            const providers = await this.extractProvidersFromPlugin(plugin);
+
+            const pluginInfo: PluginInfo = {
+              name: plugin.name,
+              description: plugin.description,
+              path: (pluginState as any).path || 'loaded',
+              packageJson: pluginState.packageJson,
+              services,
+              actions,
+              providers,
+              dependencies: plugin.dependencies || [],
+            };
+
+            allPlugins.push(pluginInfo);
+            allServices.push(...services);
+            allActions.push(...actions);
+            allProviders.push(...providers);
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('[ServiceDiscovery] Error discovering from Plugin Manager:', error);
+    }
+
+    return {
+      plugins: allPlugins,
+      services: allServices,
+      actions: allActions,
+      providers: allProviders,
+    };
+  }
+
+  /**
+   * Discover services from filesystem (fallback method)
+   */
+  private async discoverFromFilesystem(searchTerms: string[]): Promise<DiscoveryResult> {
     const elizaPath = path.resolve(process.cwd(), '../..');
     const pluginsPath = path.join(elizaPath, 'packages');
 
@@ -168,6 +258,93 @@ export class ServiceDiscoveryManager {
       actions: allActions,
       providers: allProviders,
     };
+  }
+
+  /**
+   * Check if a plugin matches search terms
+   */
+  private pluginMatchesSearchTerms(plugin: any, searchTerms: string[]): boolean {
+    const pluginText = (
+      plugin.name + ' ' + 
+      (plugin.description || '') + ' ' +
+      (plugin.services?.map((s: any) => s.serviceName || s.name || '').join(' ') || '') + ' ' +
+      (plugin.actions?.map((a: any) => a.name || '').join(' ') || '') + ' ' +
+      (plugin.providers?.map((p: any) => p.name || '').join(' ') || '')
+    ).toLowerCase();
+
+    return searchTerms.some(term => 
+      pluginText.includes(term.toLowerCase())
+    );
+  }
+
+  /**
+   * Extract service information from a plugin
+   */
+  private async extractServicesFromPlugin(plugin: any): Promise<ServiceInfo[]> {
+    const services: ServiceInfo[] = [];
+    
+    if (plugin.services) {
+      for (const service of plugin.services) {
+        const serviceInfo: ServiceInfo = {
+          name: service.serviceName || service.name || service.constructor?.name || 'Unknown',
+          serviceType: service.serviceType || service.constructor?.serviceType || 'unknown',
+          capabilityDescription: service.capabilityDescription || '',
+          sourceFile: 'plugin'
+        };
+        services.push(serviceInfo);
+      }
+    }
+    
+    return services;
+  }
+
+  /**
+   * Extract action information from a plugin
+   */
+  private async extractActionsFromPlugin(plugin: any): Promise<ActionInfo[]> {
+    const actions: ActionInfo[] = [];
+    
+    if (plugin.actions) {
+      for (const action of plugin.actions) {
+        const actionInfo: ActionInfo = {
+          name: action.name || 'Unknown',
+          description: action.description || '',
+          signature: action.signature || 'handler(runtime, message, state, options, callback)',
+          validateSignature: 'validate(runtime, message, state)',
+          handlerSignature: 'handler(runtime, message, state, options, callback)',
+          parameters: [], // Could be enhanced to parse actual parameters
+          returnType: 'Promise<any>',
+          sourceFile: 'plugin'
+        };
+        actions.push(actionInfo);
+      }
+    }
+    
+    return actions;
+  }
+
+  /**
+   * Extract provider information from a plugin
+   */
+  private async extractProvidersFromPlugin(plugin: any): Promise<ProviderInfo[]> {
+    const providers: ProviderInfo[] = [];
+    
+    if (plugin.providers) {
+      for (const provider of plugin.providers) {
+        const providerInfo: ProviderInfo = {
+          name: provider.name || 'Unknown',
+          description: provider.description || '',
+          signature: provider.signature || 'get(runtime, message, state)',
+          getSignature: 'get(runtime, message, state)',
+          parameters: [], // Could be enhanced to parse actual parameters
+          returnType: 'Promise<ProviderResult>',
+          sourceFile: 'plugin'
+        };
+        providers.push(providerInfo);
+      }
+    }
+    
+    return providers;
   }
 
   /**

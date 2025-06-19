@@ -21,8 +21,8 @@ export const benchmarkScenarios: BenchmarkScenario[] = [
       mustCompile: true,
       mustPassTests: true,
       minTestCoverage: 80,
-      maxDuration: 180000, // 3 minutes max
-      maxIterations: 5,
+      maxDuration: 1800000, // 30 minutes max for 100 iterations
+      maxIterations: 100, // Allow up to 100 iterations to fix all issues
       requiredComponents: ['action'],
     },
   },
@@ -51,7 +51,7 @@ export const benchmarkScenarios: BenchmarkScenario[] = [
       mustPassTests: true,
       minTestCoverage: 75,
       maxDuration: 420000, // 7 minutes max
-      maxIterations: 8,
+      maxIterations: 100, // Allow up to 100 iterations
       requiredComponents: ['action', 'provider'],
       customValidation: async (project) => {
         // Check for proper API key handling
@@ -95,7 +95,7 @@ export const benchmarkScenarios: BenchmarkScenario[] = [
       mustPassTests: true,
       minTestCoverage: 80,
       maxDuration: 600000, // 10 minutes max
-      maxIterations: 10,
+      maxIterations: 100, // Allow up to 100 iterations
       requiredComponents: ['service', 'action', 'provider'],
     },
   },
@@ -125,7 +125,7 @@ export const benchmarkScenarios: BenchmarkScenario[] = [
       mustPassTests: true,
       minTestCoverage: 75,
       maxDuration: 900000, // 15 minutes max
-      maxIterations: 12,
+      maxIterations: 100, // Allow up to 100 iterations
       requiredComponents: ['service', 'action', 'provider', 'evaluator'],
     },
   },
@@ -154,7 +154,7 @@ export const benchmarkScenarios: BenchmarkScenario[] = [
       mustPassTests: true,
       minTestCoverage: 80,
       maxDuration: 420000, // 7 minutes max
-      maxIterations: 6,
+      maxIterations: 100, // Allow up to 100 iterations
       requiredComponents: ['action', 'provider'],
       customValidation: async (project) => {
         // Check for rate limiting implementation

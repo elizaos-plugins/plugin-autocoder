@@ -32,6 +32,14 @@ export class BenchmarkRunner {
   }
 
   /**
+   * Initialize the benchmark runner
+   */
+  async initialize(): Promise<void> {
+    // Initialize the orchestration manager
+    await this.orchestrationManager.initialize();
+  }
+
+  /**
    * Run all configured benchmarks
    */
   async runAll(): Promise<BenchmarkResult[]> {
@@ -130,11 +138,32 @@ export class BenchmarkRunner {
       const startTime = Date.now();
       metricsCollector.startPhase('full_development');
 
-      const completedProject = await instrumentedManager.executeWorkflow(project, {
-        requirements: scenario.requirements,
-        constraints: scenario.constraints,
-        testData: scenario.testData,
-      });
+      // Create plugin project through orchestration manager
+      const createdProject = await instrumentedManager.createPluginProject(
+        project.name,
+        project.description,
+        project.userId,
+        project.conversationId
+      );
+
+      // Add custom instructions based on requirements and constraints
+      if (scenario.requirements.length > 0 || scenario.constraints.length > 0) {
+        await instrumentedManager.addCustomInstructions(
+          createdProject.id,
+          [...scenario.requirements, ...scenario.constraints]
+        );
+      }
+
+      // Wait for completion
+      let completedProject = await instrumentedManager.getProject(createdProject.id);
+      while (completedProject && completedProject.status !== 'completed' && completedProject.status !== 'failed') {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Poll every 5 seconds
+        completedProject = await instrumentedManager.getProject(createdProject.id);
+      }
+
+      if (!completedProject) {
+        throw new Error('Project not found');
+      }
 
       metricsCollector.endPhase('full_development');
       const duration = Date.now() - startTime;
@@ -196,7 +225,9 @@ export class BenchmarkRunner {
           },
         },
         logs: project.logs,
-        artifacts: {},
+        artifacts: {
+          generatedFiles: []
+        },
       };
     }
   }
@@ -527,7 +558,9 @@ export class BenchmarkRunner {
         },
       },
       logs: [`Error: ${error.message || error}`],
-      artifacts: {},
+      artifacts: {
+        generatedFiles: []
+      },
     };
   }
 }

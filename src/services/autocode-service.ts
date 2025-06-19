@@ -9,6 +9,8 @@ import type {
 } from '../managers/component-creation-manager';
 import type { DynamicLoadOptions, DynamicLoadResult } from '../managers/dynamic-loader-manager';
 
+export type { PluginProject };
+
 /**
  * Main service for automated code generation and plugin development
  * This is the discoverable service that provides all autocoding capabilities
@@ -151,11 +153,17 @@ export class AutoCodeService extends Service {
     filePath: string;
     componentType: ComponentType;
   }): Promise<DynamicLoadResult> {
-    return this.dynamicLoaderManager.loadComponent({
-      ...options,
-      runtimeServices: new Map(),
-      sandboxed: false,
+    const loadResult = await this.dynamicLoaderManager.loadComponent({
+      filePath: options.filePath,
+      componentType: options.componentType,
+      runtime: this.runtime,
     });
+
+    if (!loadResult.success) {
+      throw new Error('Failed to load component');
+    }
+
+    return loadResult;
   }
 
   // ===== Methods for E2E tests =====

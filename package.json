@@ -40,9 +40,12 @@
     "tsup.config.ts"
   ],
   "dependencies": {
+    "@anthropic-ai/claude-code": "^1.0.0",
     "@elizaos/core": "workspace:*",
     "@elizaos/plugin-anthropic": "^1.0.3",
     "@elizaos/plugin-message-handling": "workspace:*",
+    "@elizaos/plugin-secrets-manager": "workspace:*",
+    "@elizaos/plugin-plugin-manager": "workspace:*",
     "fs-extra": "^11.2.0",
     "lru-cache": "^11.0.2",
     "uuid": "^11.1.0",

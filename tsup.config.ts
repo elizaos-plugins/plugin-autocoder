@@ -28,5 +28,6 @@ export default defineConfig({
     'node-fetch',
     'http',
     'agentkeepalive',
+    'chromium-bidi',
   ],
 });

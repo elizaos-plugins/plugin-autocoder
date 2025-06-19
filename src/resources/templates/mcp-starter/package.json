@@ -1,0 +1,39 @@
+{
+  "name": "@local/mcp-server",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MCP Server",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "mcp-server": "./dist/mcp-server/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x dist/mcp-server/index.js",
+    "start": "node --loader ts-node/esm dist/mcp-server/index.js",
+    "dev": "node --loader ts-node/esm src/mcp-server/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": ["mcp", "server"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "0.5.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 

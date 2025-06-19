@@ -146,7 +146,7 @@ export class DecisionLogger {
     await this.saveDecision(decision);
 
     if (this.verbose) {
-      console.log(`[DECISION] Fix: ${error.type} error`);
+      console.log(`[DECISION] Fix: ${error.errorType} error`);
       console.log(`  Strategy: ${fixStrategy}`);
       console.log(`  Reasoning: ${reasoning}`);
     }

@@ -24,3 +24,23 @@ export function isValidJsonSpecification(text: string): boolean {
     return false;
   }
 }
+
+/**
+ * Validates if requirements are properly defined
+ */
+export function validateRequirements(requirements: any): boolean {
+  if (!requirements || typeof requirements !== 'object') {
+    return false;
+  }
+
+  // Basic validation for common requirement fields
+  if (requirements.tools && !Array.isArray(requirements.tools)) {
+    return false;
+  }
+
+  if (requirements.resources && !Array.isArray(requirements.resources)) {
+    return false;
+  }
+
+  return true;
+}

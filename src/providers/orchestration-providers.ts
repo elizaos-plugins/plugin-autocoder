@@ -211,7 +211,7 @@ export const projectUpdatesProvider: Provider = {
       updates += `   Status: ${project.status} | Phase: ${project.phase}/${project.totalPhases}\n`;
 
       // Show current iteration if in development
-      if (project.status === 'developing') {
+      if (project.status === 'mvp_development' || project.status === 'full_development') {
         updates += `   Iteration: ${project.currentIteration}${project.infiniteMode ? ' (∞ mode)' : `/${project.maxIterations}`}\n`;
 
         // Show error summary

@@ -356,6 +356,137 @@ export const addCustomInstructionsAction: Action = {
 };
 
 /**
+ * Action to publish a plugin to Plugin Manager
+ */
+export const publishPluginAction: Action = {
+  name: 'publishPlugin',
+  description: 'Publishes a completed plugin to the Plugin Manager registry',
+  examples: [
+    [{ name: 'user', content: { text: 'Publish project project-12345 to plugin registry' } }],
+    [{ name: 'user', content: { text: 'Publish the weather-tracker plugin' } }],
+  ],
+  validate: async (runtime: IAgentRuntime, message: Memory, state: State): Promise<boolean> => {
+    const text = message.content.text?.toLowerCase() || '';
+    return text.includes('publish') && (text.includes('plugin') || text.includes('project'));
+  },
+  handler: async (runtime: IAgentRuntime, message: Memory, state: State) => {
+    const service = runtime.getService('autocoder') as AutoCodeService;
+    if (!service) return { text: 'Orchestration service is not available.' };
+
+    const pluginManager = runtime.getService('PLUGIN_MANAGER') as any; // PluginManagerService
+    if (!pluginManager) {
+      return { text: 'Plugin Manager service is not available. Please ensure plugin-plugin-manager is loaded.' };
+    }
+
+    const text = message.content.text || '';
+    const idMatch = text.match(/project ([a-zA-Z0-9-]+)/);
+    const nameMatch = text.match(/plugin "(.*?)"/);
+    
+    let project: any = null;
+    
+    if (idMatch) {
+      project = await service.getProject(idMatch[1]);
+      if (!project) return { text: `Project ${idMatch[1]} not found.` };
+    } else if (nameMatch) {
+      // Try to find project by name
+      const projects = await service.getAllProjects();
+      project = projects.find(p => p.name === nameMatch[1]);
+      if (!project) return { text: `No project found with name "${nameMatch[1]}".` };
+    } else {
+      // Try to find the most recent completed project
+      const projects = await service.getProjectsByUser(message.entityId);
+      project = projects.find(p => p.status === 'completed');
+      if (!project) return { text: 'No completed projects found to publish.' };
+    }
+
+    // Check if project is completed
+    if (project.status !== 'completed') {
+      return { text: `Project ${project.name} is not yet completed. Current status: ${project.status}` };
+    }
+
+    if (!project.localPath) {
+      return { text: `Project ${project.name} does not have a local path for publishing.` };
+    }
+
+    try {
+      // Enhanced security validation for plugin publishing
+      const securityModule = runtime.getService('security-module');
+      if (securityModule) {
+        const securityCheck = await (securityModule as any).validatePluginPublishing({
+          projectPath: project.localPath,
+          entityId: message.entityId,
+          projectName: project.name,
+        });
+
+        if (!securityCheck.allowed) {
+          return { text: `Plugin publishing blocked by security validation: ${securityCheck.reason}` };
+        }
+
+        logger.info(`Security validation passed for plugin ${project.name}`);
+      }
+
+      // Check what to publish (npm, github, registry)
+      const publishToNpm = text.includes('npm');
+      const publishToGithub = text.includes('github');
+      const publishToRegistry = text.includes('registry') || (!publishToNpm && !publishToGithub);
+
+      logger.info(`Publishing plugin ${project.name} to: npm=${publishToNpm}, github=${publishToGithub}, registry=${publishToRegistry}`);
+
+      // Record trust event for publishing attempt
+      const trustService = runtime.getService('trust-engine');
+      if (trustService) {
+        await (trustService as any).updateTrust({
+          entityId: message.entityId,
+          change: 0.05, // Positive trust for publishing plugins
+          reason: `Publishing plugin: ${project.name}`,
+          source: 'autocoder-plugin',
+          evidence: {
+            action: 'publishPlugin',
+            projectName: project.name,
+            publishTargets: { npm: publishToNpm, github: publishToGithub, registry: publishToRegistry },
+          },
+        });
+      }
+
+      const result = await pluginManager.publishPlugin({
+        path: project.localPath,
+        npm: publishToNpm,
+        github: publishToGithub,
+        registry: publishToRegistry
+      });
+
+      if (!result.success) {
+        return { text: `Failed to publish plugin ${project.name}.` };
+      }
+
+      let successMessage = `Successfully published ${project.name}:\n`;
+      if (result.npmPackage) {
+        successMessage += `- NPM: ${result.npmPackage}\n`;
+      }
+      if (result.githubRepo) {
+        successMessage += `- GitHub: ${result.githubRepo}\n`;
+      }
+      if (publishToRegistry) {
+        successMessage += `- Plugin Registry: Available for discovery\n`;
+      }
+
+      // Update project with publishing info
+      if (result.npmPackage) {
+        project.npmPackage = result.npmPackage;
+      }
+      if (result.githubRepo) {
+        project.githubRepo = result.githubRepo;
+      }
+
+      return { text: successMessage };
+    } catch (error) {
+      logger.error('Failed to publish plugin:', error);
+      return { text: `Failed to publish plugin: ${error.message}` };
+    }
+  },
+};
+
+/**
  * Action to get project notifications
  */
 export const getProjectNotificationsAction: Action = {
@@ -438,5 +569,6 @@ export const orchestrationActions = [
   setInfiniteModeAction,
   addCustomInstructionsAction,
   getProjectNotificationsAction,
+  publishPluginAction,
   runBenchmarkAction,
 ];
